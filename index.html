@@ -1,0 +1,109 @@
+
+<!DOCTYPE html>
+<html lang="kk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QOSYL — Әлеуметтік желі</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#f3f7fc;color:#202b3c;font-family:Arial,sans-serif}
+header{background:white;padding:18px;text-align:center;border-bottom:1px solid #ddd}
+header h1{margin:0;color:#3478f6}
+main{max-width:520px;margin:auto;padding:15px 12px 85px}
+.panel,.post{background:white;border-radius:16px;padding:16px;margin-bottom:15px;box-shadow:0 2px 12px #15294b0b}
+input,textarea{width:100%;padding:12px;border:1px solid #d7dfeb;border-radius:10px;margin:6px 0;font-size:16px}
+textarea{resize:vertical}
+button{background:#3478f6;color:white;border:0;border-radius:10px;padding:11px 15px;font-size:15px;cursor:pointer}
+.post-head{font-weight:bold;margin-bottom:12px}
+.post img{width:100%;max-height:400px;object-fit:cover;border-radius:12px;margin-top:8px}
+.post-text{white-space:pre-wrap;overflow-wrap:anywhere}
+.actions{display:flex;gap:10px;margin-top:12px;flex-wrap:wrap}
+.actions button{background:#edf3ff;color:#2465d9}
+.actions button.liked{background:#ffe8ed;color:#d72551}
+small{color:#778397}
+nav{position:fixed;bottom:0;left:0;right:0;background:white;display:flex;justify-content:space-around;padding:12px 2px calc(12px + env(safe-area-inset-bottom));border-top:1px solid #ddd}
+nav button{background:white;color:#3478f6;padding:8px;font-size:14px}
+h3{margin-top:0}
+.hidden{display:none}
+</style>
+</head>
+<body>
+<header><h1>QOSYL</h1><small>Бірге бол. Бөліс. Достас.</small></header>
+<main>
+<section id="home">
+<div class="panel">
+<h3>Не жаңалық?</h3>
+<input id="author" placeholder="Атың кім?">
+<textarea id="message" rows="3" placeholder="Ойыңмен бөліс..."></textarea>
+<input id="photo" type="file" accept="image/*">
+<button onclick="addPost()">Пост жариялау</button>
+</div>
+<div id="feed"></div>
+</section>
+<section id="profile" class="hidden">
+<div class="panel">
+<h3>Менің профилім</h3>
+<p id="profileName">Қолданушы</p>
+<p>QOSYL желісіндегі жазбаларың осында көрінеді.</p>
+</div>
+</section>
+<section id="search" class="hidden">
+<div class="panel">
+<h3>Іздеу</h3>
+<input id="query" placeholder="Посттан сөз ізде..." oninput="render()">
+</div>
+<div id="searchFeed"></div>
+</section>
+</main>
+<nav>
+<button onclick="show('home')">🏠 Басты бет</button>
+<button onclick="show('search')">🔎 Іздеу</button>
+<button onclick="show('profile')">👤 Профиль</button>
+</nav>
+<script>
+const KEY='qosyl_posts_v1';
+let posts=[];
+try{posts=JSON.parse(localStorage.getItem(KEY)||'[]')}catch(e){posts=[]}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(posts))}catch(e){alert('Сақтау орны толды. Кішірек фото қолданып көр.')}} 
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function render(){
+const q=(document.getElementById('query')?.value||'').toLowerCase();
+const html=posts.filter(p=>(p.text+' '+p.name).toLowerCase().includes(q)).map(p=>`
+<article class="post">
+<div class="post-head">👤 ${esc(p.name)}</div>
+<div class="post-text">${esc(p.text)}</div>
+${p.photo?`<img src="${p.photo}" alt="Пост суреті">`:''}
+<div class="actions">
+<button class="${p.liked?'liked':''}" onclick="likePost('${p.id}')">♥ ${p.likes}</button>
+<button onclick="commentPost('${p.id}')">💬 Пікір (${p.comments.length})</button>
+</div>
+${p.comments.map(c=>`<p><b>${esc(c.name)}:</b> ${esc(c.text)}</p>`).join('')}
+</article>`).join('');
+document.getElementById('feed').innerHTML=html||'<div class="panel">Әзірге пост жоқ. Алғашқы постты сен жарияла! ✨</div>';
+document.getElementById('searchFeed').innerHTML=html;
+document.getElementById('profileName').textContent=document.getElementById('author').value.trim()||'Қолданушы';
+}
+async function addPost(){
+const name=document.getElementById('author').value.trim()||'Қолданушы';
+const text=document.getElementById('message').value.trim();
+const file=document.getElementById('photo').files[0];
+if(!text&&!file){alert('Мәтін немесе фото қос!');return}
+let photo='';
+if(file){
+if(file.size>700000){alert('Фото үлкен. 700 KB-тан кіші фото таңда.');return}
+photo=await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=reject;r.readAsDataURL(file)});
+}
+posts.unshift({id:String(Date.now()),name,text,photo,likes:0,liked:false,comments:[]});
+save();
+document.getElementById('message').value='';
+document.getElementById('photo').value='';
+show('home');render();
+}
+function likePost(id){const p=posts.find(p=>p.id===id);if(!p)return;p.liked=!p.liked;p.likes+=p.liked?1:-1;save();render()}
+function commentPost(id){const text=prompt('Пікіріңді жаз:');if(!text||!text.trim())return;const p=posts.find(p=>p.id===id);if(!p)return;p.comments.push({name:document.getElementById('author').value.trim()||'Қолданушы',text:text.trim()});save();render()}
+function show(page){['home','profile','search'].forEach(id=>document.getElementById(id).classList.toggle('hidden',id!==page));render()}
+render();
+</script>
+</body>
+</html>
